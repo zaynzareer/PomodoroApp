@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomodoro</title>
+    <link rel="stylesheet" href="styling/DashboardStyles.css">
+  </head>
+  <body>
+    <header>
+      <h1>Focus Now, Scroll Later</h1>
+      <h1>Settings</h1>
+    </header>
+    <div class="container">
+      <div class="dashboard">
+        <!-- Timer Card -->
+        <div class="card">
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            Pomodoro Timer
+          </h2>
+          <div class="timer-container">
+            <div class="timer-wrapper">
+              <div class="timer-progress" id="timerProgress"></div>
+              <div class="timer-circle">
+                <div class="timer-display" id="timer">25:00</div>
+              </div>
+            </div>
+            <div class="pomodoroCount">
+            <p>Pomodoros Done Today: <span id="pomodoros">0</span></p>
+            </div>
+            <div class="timer-controls">
+              <button class="timer-btn" id="startTimer" onclick="toggleTimer()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                Start
+              </button>
+              <button class="timer-btn" id="resetTimer" onclick="resetTimer()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 2v6h6"></path>
+                  <path d="M21 12A9 9 0 0 0 6 5.3L3 8"></path>
+                  <path d="M21 22v-6h-6"></path>
+                  <path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"></path>
+                </svg>
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card"></div> 
+      </div>
+    </div>
+    <!-- Neutralino.js client. This file is gitignored, 
+        because `neu update` typically downloads it.
+        Avoid copy-pasting it. 
+        -->
+  <script src="/js/neutralino.js"></script>
+  <script src="js/main.js"></script>
+
+  <script src="js/pomodoro.js"></script>
+
+  </body>
+</html>

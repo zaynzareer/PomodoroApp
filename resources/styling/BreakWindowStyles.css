@@ -1,0 +1,214 @@
+:root {
+  --primary-color: #FF5722;
+  --primary-color-light: #FF7043;
+  --secondary-color: #7E57C2;
+  --tertiary-color: #26A69A;
+  --accent-color: #FFC107;
+  --background-dark: #121212;
+  --background-card: #1E1E1E;
+  --text-primary: #EEEEEE;
+  --text-secondary: #AAAAAA;
+  --shadow-neon: 0 0 10px rgba(255, 87, 34, 0.5), 0 0 20px rgba(255, 87, 34, 0.3);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Rajdhani', 'Orbitron', sans-serif;
+}
+
+body {
+  background-color: var(--background-dark);
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  color: var(--text-primary);
+}
+
+.break-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(18, 18, 18, 0.95);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.break-container {
+  background-color: var(--background-card);
+  border-radius: 15px;
+  padding: 40px;
+  width: 80%;
+  max-width: 600px;
+  box-shadow: var(--shadow-neon);
+  border: 2px solid var(--primary-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.break-container::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    to bottom right,
+    rgba(255, 87, 34, 0.1),
+    rgba(126, 87, 194, 0.1),
+    rgba(38, 166, 154, 0.1)
+  );
+  z-index: -1;
+  transform: rotate(45deg);
+  animation: gradientShift 8s infinite linear;
+}
+
+@keyframes gradientShift {
+  0% {
+    transform: rotate(45deg) translate(0, 0);
+  }
+  100% {
+    transform: rotate(45deg) translate(100px, 100px);
+  }
+}
+
+.break-title {
+  font-size: 3rem;
+  margin-bottom: 20px;
+  color: var(--primary-color);
+  text-shadow: 0 0 10px rgba(255, 87, 34, 0.7);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.break-subtitle {
+  font-size: 1.5rem;
+  margin-bottom: 30px;
+  color: var(--text-secondary);
+  text-align: center;
+  max-width: 80%;
+}
+
+.timer-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 30px 0;
+  position: relative;
+}
+
+.timer-ring {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: conic-gradient(
+    var(--secondary-color) 0%,
+    var(--secondary-color) var(--progress),
+    transparent var(--progress),
+    transparent 100%
+  );
+  box-shadow: 0 0 15px rgba(126, 87, 194, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+
+.timer-ring::before {
+  content: '';
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  background-color: var(--background-card);
+  border-radius: 50%;
+}
+
+.timer-display {
+  position: absolute;
+  font-size: 3.5rem;
+  font-weight: bold;
+  color: var(--text-primary);
+  z-index: 10;
+  text-shadow: 0 0 10px rgba(126, 87, 194, 0.8);
+}
+
+.controls {
+  display: flex;
+  gap: 20px;
+  margin-top: 30px;
+}
+
+.control-btn {
+  background-color: var(--background-card);
+  border: 2px solid var(--secondary-color);
+  color: var(--text-primary);
+  border-radius: 10px;
+  padding: 15px 30px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 0 10px rgba(126, 87, 194, 0.3);
+}
+
+.control-btn:hover {
+  background-color: var(--secondary-color);
+  box-shadow: 0 0 15px rgba(126, 87, 194, 0.8);
+  transform: translateY(-3px);
+}
+
+.control-btn:active {
+  transform: translateY(1px);
+}
+
+.control-icon {
+  width: 20px;
+  height: 20px;
+  fill: var(--text-primary);
+}
+
+.tips-container {
+  margin-top: 30px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+.glowing-particles {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  background-color: var(--primary-color);
+  border-radius: 50%;
+  filter: blur(2px);
+  animation: float 5s infinite linear;
+  opacity: 0.6;
+}
+
+@keyframes float {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translate(100px, -100px) rotate(360deg);
+    opacity: 0;
+  }
+}

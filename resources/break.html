@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pomodoro Break Window</title>
+  <link rel="stylesheet" href="styling/BreakWindowStyles.css">
+</head>
+<body>
+  <div class="break-overlay">
+    <div class="break-container">
+      <h1 class="break-title">Break Time</h1>
+      <p class="break-subtitle">Rest your eyes and stretch. You've earned it!</p>
+      
+      <div class="timer-container">
+        <div class="timer-ring" style="--progress: 75%">
+          <div class="timer-display" id="timer">04:00</div>
+        </div>
+      </div>
+      
+      <div class="controls">
+        <button class="control-btn" id="pauseBtn">
+          <svg class="control-icon" viewBox="0 0 24 24">
+            <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+          </svg>
+          Pause
+        </button>
+        <button class="control-btn" id="skipBtn">
+          <svg class="control-icon" viewBox="0 0 24 24">
+            <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+          </svg>
+          Skip
+        </button>
+      </div>
+        
+      <div class="tips-container">
+        <p>Tip: Stand up and stretch or grab a glass of water!</p>
+      </div>
+    </div>
+  </div>
+  <script src="js/neutralino.js"></script>
+  <script src="js/break.js"></script>
+</body>
+</html>
