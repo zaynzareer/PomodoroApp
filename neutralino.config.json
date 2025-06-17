@@ -42,13 +42,13 @@
       "center": true,
       "fullScreen": false,
       "alwaysOnTop": false,
-      "icon": "/resources/icons/appIcon.png",
+      "icon": "/resources/icons/timer.png",
       "enableInspector": true,
-      "borderless": false,
+      "borderless": true,
       "maximize": false,
       "hidden": false,
       "resizable": true,
-      "exitProcessOnClose": true
+      "exitProcessOnClose": false
     },
     "browser": {
       "globalVariables": {

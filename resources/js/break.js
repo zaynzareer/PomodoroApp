@@ -68,12 +68,12 @@ skipBtn.addEventListener('click', () => {
 });
 
 async function endBreak() {
-    try {
-      await Neutralino.storage.setData("BreakStatus", JSON.stringify({ ended: true }));
-      await Neutralino.app.exit();
-    } catch (e) {
-      console.error('Error ending break:', e);
-    }
+  try {
+  await Neutralino.storage.setData("BreakStatus", JSON.stringify({ ended: true }));
+  await Neutralino.app.exit();
+  } catch (e) {
+  console.error('Error ending break:', e);
+  }
 };
 
 // Create floating particles
