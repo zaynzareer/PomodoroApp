@@ -1,5 +1,5 @@
-let totalTime =  25 * 60  ;
-let time = 25 * 60; // 25 mins: 25 *60
+let totalTime =  20 * 60;
+let time = 20 * 60; // 25 mins: 25 *60
 let timerInterval = null;
 let isRunning = false;
 let pomodoros = 0;
@@ -69,8 +69,8 @@ function resetTimer() {
     toggleTimer();
   }
   //time = 25 * 60;
-  totalTime = 25 * 60;
-  time = 25 * 60;
+  totalTime = 20 * 60;
+  time = 20 * 60;
   updateDisplay();
 }
 
@@ -266,7 +266,7 @@ function createAppUsageChart(data) {
 
 async function startPythonServer() {
   try {
-    const pythonScript = Neutralino.os.execCommand('python resources/backend/UsageTracker.py', {background: true});
+    const pythonScript = Neutralino.os.execCommand('python C:\\Users\\zayn\\Desktop\\Pomodoro\\resources\\backend\\UsageTracker.py', {background: true});
   } catch (err) {
     console.error("Failed to start Flask server:", err);
   }
@@ -278,6 +278,7 @@ async function waitForBackendReady(retries = 10) {
       const response = await fetch('http://localhost:5000/api/health');
       if (response.ok) {
         console.log("Backend is ready.");
+        hideLoadingOverlay();
         return;
       }
     } catch (err) {
@@ -306,6 +307,27 @@ try {
   }
 }
 
+function hideLoadingOverlay() {
+  const loadingContent = document.querySelector('.loading-container');
+  loadingContent.style.opacity = '0';
+  loadingContent.style.transition = 'opacity 0.9s ease-out';
+  setTimeout(() => {
+    loadingContent.style.display = 'none';
+  }, 1000);
+
+  setTimeout(() => {
+    const loadingDone = document.querySelector('.done-container');
+    loadingDone.style.display = 'block';
+  }, 1000);
+  setTimeout(() => {
+    const loadingOverlay = document.querySelector('.loading-overlay');
+    loadingOverlay.style.opacity = '0';
+    loadingOverlay.style.transition = 'opacity 0.9s ease-out';
+    setTimeout(() => {
+      loadingOverlay.style.display = 'none';
+    }, 1000);
+  }, 4500);
+}
 
 function initCustomWindowTitleBar () {
   Neutralino.window.setDraggableRegion("app-header");

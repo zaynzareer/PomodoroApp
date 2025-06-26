@@ -190,7 +190,7 @@ def health_check():
 @app.route('/api/reset-app-usage', methods=['POST'])
 def reset_tracking():
     global app_usage
-    save_usage_to_file(archive=True)
+    #save_usage_to_file(archive=True)
     app_usage.clear()
     logging.info("Tracking data has been reset.")
     return jsonify({"status": "success", "message": "Tracking data reset."})

@@ -379,3 +379,305 @@ body {
     font-size: 36px;
   }
 }
+
+/* Loading screen styles */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: var(--background-dark);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+}
+
+.logo {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: var(--primary-color);
+  text-shadow: var(--shadow-neon);
+  letter-spacing: 2px;
+  animation: glow 2s ease-in-out infinite alternate;
+}
+
+.loading-spinner {
+  position: relative;
+  width: 80px;
+  height: 80px;
+}
+
+.spinner-ring {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border: 3px solid transparent;
+  border-radius: 50%;
+  animation: spin 1.5s linear infinite;
+}
+
+.spinner-ring:nth-child(1) {
+  border-top-color: var(--primary-color);
+  border-right-color: var(--primary-color);
+  animation-duration: 1.5s;
+}
+
+.spinner-ring:nth-child(2) {
+  border-bottom-color: var(--secondary-color);
+  border-left-color: var(--secondary-color);
+  animation-duration: 2s;
+  animation-direction: reverse;
+}
+
+.spinner-ring:nth-child(3) {
+  border-top-color: var(--tertiary-color);
+  border-right-color: var(--tertiary-color);
+  animation-duration: 2.5s;
+  width: 60px;
+  height: 60px;
+  top: 10px;
+  left: 10px;
+}
+
+.loading-text {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  font-weight: 500;
+  text-align: center;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.loading-dots {
+  display: inline-block;
+  animation: dots 1.5s steps(4, end) infinite;
+}
+
+.progress-bar {
+  width: 200px;
+  height: 3px;
+  background: var(--background-card);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary-color), var(--primary-color-light));
+  border-radius: 2px;
+  animation: progress 3s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(255, 87, 34, 0.6);
+}
+
+.background-pattern {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.25;
+  background-image: 
+    radial-gradient(circle at 25% 25%, var(--primary-color) 2px, transparent 2px),
+    radial-gradient(circle at 75% 75%, var(--secondary-color) 1px, transparent 1px);
+  background-size: 50px 50px;
+  animation: float 20s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes glow {
+  from {
+    text-shadow: var(--shadow-neon);
+  }
+  to {
+    text-shadow: 
+      0 0 15px rgba(255, 87, 34, 0.8), 
+      0 0 25px rgba(255, 87, 34, 0.5),
+      0 0 35px rgba(255, 87, 34, 0.3);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+@keyframes dots {
+  0%, 20% { content: '.'; }
+  40% { content: '..'; }
+  60%, 100% { content: '...'; }
+}
+
+@keyframes progress {
+  0% { width: 0%; }
+  50% { width: 70%; }
+  100% { width: 100%; }
+}
+
+@keyframes float {
+  0% { transform: translateY(0px) translateX(0px); }
+  33% { transform: translateY(-10px) translateX(5px); }
+  66% { transform: translateY(5px) translateX(-5px); }
+  100% { transform: translateY(0px) translateX(0px); }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .logo {
+    font-size: 2rem;
+  }
+  
+  .loading-spinner {
+    width: 60px;
+    height: 60px;
+  }
+  
+  .spinner-ring:nth-child(3) {
+    width: 45px;
+    height: 45px;
+    top: 7.5px;
+    left: 7.5px;
+  }
+  
+  .progress-bar {
+    width: 150px;
+  }
+}
+
+/* Checkmark styles */
+.done-container {
+  text-align: center;
+  opacity: 1;
+  transform: translateY(0);
+  transition: all 1.2s cubic-bezier(0.23, 1, 0.32, 1);
+  display: none;
+}
+
+.done-container.fade-out {
+  opacity: 0;
+  transform: translateY(-20px);
+}
+
+.check-icon {
+  width: 80px;
+  height: 80px;
+  border: 2px solid var(--primary-color);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 2rem;
+  position: relative;
+  overflow: hidden;
+  animation: check-appear 0.6s ease-out 0.3s both;
+}
+
+.check-icon::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 87, 34, 0.1), transparent);
+  animation: shine 2s ease-in-out infinite;
+}
+
+.checkmark {
+  font-size: 2rem;
+  color: var(--primary-color);
+  font-weight: 300;
+  animation: check-appear 0.6s ease-out 0.3s both;
+}
+
+.done-text {
+  font-size: 2.5rem;
+  font-weight: 200;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.05em;
+  animation: text-appear 0.8s ease-out 0.6s both;
+}
+
+.subtitle { 
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  font-weight: 300;
+  animation: subtitle-appear 0.8s ease-out 0.9s both;
+}
+@keyframes shine {
+  0% {
+      left: -100%;
+  }
+  100% {
+      left: 100%;
+  }
+}
+
+@keyframes check-appear {
+  0% {
+      opacity: 0;
+      transform: scale(0);
+  }
+  50% {
+      transform: scale(1.1);
+  }
+  100% {
+      opacity: 1;
+      transform: scale(1);
+  }
+}
+
+@keyframes text-appear {
+  0% {
+      opacity: 0;
+      transform: translateY(10px);
+  }
+  100% {
+      opacity: 1;
+      transform: translateY(0);
+  }
+}
+
+@keyframes subtitle-appear {
+  0% {
+      opacity: 0;
+  }
+  100% {
+      opacity: 1;
+  }
+}
+
+/* Optional dot indicator */
+.status-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--primary-color);
+  border-radius: 50%;
+  margin: 2rem auto 0;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% {
+      opacity: 0.3;
+      transform: scale(1);
+  }
+  50% {
+      opacity: 1;
+      transform: scale(1.2);
+  }
+}
