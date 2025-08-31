@@ -1,5 +1,5 @@
 import os
-import sys
+#import sys
 import time
 import json
 import psutil
@@ -29,8 +29,8 @@ CORS(app)
 app_usage = {} # In seconds
 last_active_window = None
 last_check_time = datetime.now()
-last_switch_time = datetime.now()
 shutting_down = False
+lock = threading.Lock()
 
 # === LOGGER ===
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', handlers=[
@@ -76,43 +76,58 @@ def get_active_window_process():
         return None, None
 
 def track_app_usage():
-    global last_active_window, last_check_time, last_switch_time
+    global last_active_window, last_check_time
     try: 
         now = datetime.now()
 
-        # Do not track if the user is idle
-        if get_idle_duration() >= IDLE_THRESHOLD:
+        # First time initialization
+        if last_active_window is None:
+            window_title, app_name = get_active_window_process()
+            last_active_window = app_name
             last_check_time = now
-            logging.info("User is idle... App usage NOT tracked.")
+            logging.info(f"Initialized tracking with app: {app_name}")
             return
 
+        elapsed = (now - last_check_time).total_seconds()
+        if elapsed <= 0:
+            last_check_time = now
+            return
+
+        # Check idle now and compute how much of elapsed was active
+        idle_seconds = get_idle_duration()
+        if idle_seconds >= IDLE_THRESHOLD:
+            # User is idle now. Assume they became idle `idle_seconds` ago.
+            active_time = max(0, elapsed - idle_seconds)
+            if active_time > 0 and last_active_window:
+                with lock:
+                    app_usage[last_active_window] = app_usage.get(last_active_window, 0) + active_time
+                logging.info(f"[User Idle] Attributed {active_time:.2f}s to {last_active_window} before idle")
+            # reset trackers — don't count idle as app usage
+            last_check_time = now
+            last_active_window = None
+            return
+
+        # Not idle: attribute the elapsed to the app that was active during the last interval
+        if last_active_window:
+            with lock:
+                app_usage[last_active_window] = app_usage.get(last_active_window, 0) + elapsed
+            logging.info(f"[Attributed] +{elapsed:.2f}s -> {last_active_window}")
+
+        # Get the current active window and decide if switch happened
         window_title, app_name = get_active_window_process()
-        current_time = now
-        logging.info(f"Active window title: {window_title} | process name: {app_name}")
 
-        if window_title and app_name:
+        if app_name != last_active_window:
+            if elapsed >= DEBOUNCE_THRESHOLD:
+                logging.info(f"[switch] {last_active_window} -> {app_name}")
+                last_active_window = app_name
+            else:
+                logging.info(f"[Debounce]  {last_active_window} -> {app_name} ignored")
 
-            elapsed_time = (current_time - last_switch_time).total_seconds()
-            if app_name != last_active_window:
-                if elapsed_time >= DEBOUNCE_THRESHOLD:
-                    if last_active_window:
-                        app_usage[last_active_window] = app_usage.get(last_active_window, 0) + elapsed_time
-                        last_active_window = app_name
-                        last_switch_time = current_time
-                        logging.info(f"Tracking app usage: {app_name} for {elapsed_time:.2f} seconds.")
-                    else:
-                        app_usage[app_name] = app_usage.get(app_name, 0) + elapsed_time
-                        logging.info(f"Tracking app usage: {app_name} for {elapsed_time:.2f} seconds.")
-                else:
-                    app_usage[app_name] = app_usage.get(app_name, 0) + elapsed_time 
-                    logging.info(f"Tracking app usage: {app_name} for {elapsed_time:.2f} seconds.")
-
-
-        last_check_time = current_time
+        last_check_time = now
     except Exception as e:
         logging.error(f"Error tracking app usage: {e}")
 
-def tracking_loop():
+def tracking_loop( ):
     while True:
         track_app_usage()
         if shutting_down:
