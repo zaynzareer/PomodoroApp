@@ -1,5 +1,4 @@
 import os
-#import sys
 import time
 import json
 import psutil
@@ -8,14 +7,14 @@ import logging
 from flask import Flask, jsonify
 from flask_cors import CORS
 from werkzeug.serving import make_server
-from datetime import datetime, timedelta
+from datetime import datetime
 import win32gui, win32process
 import ctypes
+from ctypes import wintypes
 from AppNames import get_app_name
 
 
 # === CONFIGURATION ===
-TRACKING_INTERVAL = 10  # seconds
 TOP_APP_LIMIT = 5
 DEBOUNCE_THRESHOLD = 5
 IDLE_THRESHOLD = 90  # seconds
@@ -28,13 +27,54 @@ CORS(app)
 # === GLOBALS ===
 app_usage = {} # In seconds
 last_active_window = None
-last_check_time = datetime.now()
 shutting_down = False
+
+last_switch_monotonic = None
 lock = threading.Lock()
+
+hook_thread = None
+hook_handle = None
+
+HOOK_DEBOUNCE = 0.5 
 
 # === LOGGER ===
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', handlers=[
         logging.FileHandler("usage_tracker.log")])
+
+
+# Win32 constants
+EVENT_SYSTEM_FOREGROUND = 0x0003
+WINEVENT_OUTOFCONTEXT = 0x0000
+
+# Define WinEventProc callback prototype
+WinEventProcType = ctypes.WINFUNCTYPE(
+    None,
+    wintypes.HANDLE,  # hWinEventHook
+    wintypes.DWORD,   # event
+    wintypes.HWND,    # hwnd
+    wintypes.LONG,    # idObject
+    wintypes.LONG,    # idChild
+    wintypes.DWORD,   # dwEventThread
+    wintypes.DWORD    # dwmsEventTime
+)
+
+# Load user32.dll
+user32 = ctypes.WinDLL("user32", use_last_error=True)
+
+# Function prototypes
+user32.SetWinEventHook.restype = wintypes.HANDLE
+user32.SetWinEventHook.argtypes = [
+    wintypes.DWORD, wintypes.DWORD,
+    wintypes.HMODULE, WinEventProcType,
+    wintypes.DWORD, wintypes.DWORD, wintypes.UINT
+]
+
+user32.UnhookWinEvent.restype = wintypes.BOOL
+user32.UnhookWinEvent.argtypes = [wintypes.HANDLE]
+
+user32.GetMessageW.argtypes = [ctypes.POINTER(wintypes.MSG), wintypes.HWND, wintypes.UINT, wintypes.UINT]
+user32.GetMessageW.restype = wintypes.BOOL
+
 
 # === IDLE TIME DETECTION ===
 def get_idle_duration():
@@ -52,90 +92,153 @@ def get_idle_duration():
     millis = ctypes.windll.kernel32.GetTickCount() - lii.dwTime # Get the time since the last input in milliseconds
     return millis / 1000  # returns idle time in seconds
 
-# === TRACKING FUNCTIONALITY ===
-def get_active_window_process(): 
-    try: 
-        window = win32gui.GetForegroundWindow()
-        title = win32gui.GetWindowText(window)
-        pid = win32process.GetWindowThreadProcessId(window)[1]  
-        process = psutil.Process(pid)
-        logging.info(f"Active title: {title} Active process: {process.name()} (PID: {pid})") 
 
-        for proc in psutil.process_iter(['pid', 'name']):
-            try:
-                if proc.info['name'] and proc.info['name'].replace('.exe', '').lower() in title.lower():
-                    logging.info(f"Matched process: {proc.info['name']} (PID: {proc.info['pid']})")
-                    return title, get_app_name(proc.info['name'])
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                continue
-        logging.info(f"No matching process found for title: {title}")
-        return title, get_app_name(process.name())  # If no match found, return process name as fallback
-
+# Get active window's process name and title
+def get_process_from_hwnd(hwnd):
+    try:
+        if not hwnd:
+            return None, None
+        title = win32gui.GetWindowText(hwnd) or ""
+        _, pid = win32process.GetWindowThreadProcessId(hwnd)
+        try:
+            proc = psutil.Process(pid)
+            proc_name = proc.name()
+        except Exception as e:
+            proc_name = f"pid:{pid}"
+            logging.warning(f"Could not get process name for PID {pid}: {e}")
+        return title, get_app_name(proc_name)
     except Exception as e:
-        logging.warning(f"Error getting active window: {e}")
+        logging.error(f"Error getting process from hwnd: {e}")
         return None, None
 
-def track_app_usage():
-    global last_active_window, last_check_time
-    try: 
-        now = datetime.now()
 
-        # First time initialization
-        if last_active_window is None:
-            window_title, app_name = get_active_window_process()
-            last_active_window = app_name
-            last_check_time = now
-            logging.info(f"Initialized tracking with app: {app_name}")
+# === HOOK CALLBACK ===
+def win_event_proc(hWinEventHook, event, hwnd, idObject, idChild, dwEventThread, dwmsEventTime):
+
+    if shutting_down:
+        return
+    
+    global last_switch_monotonic, last_active_window, app_usage  
+    
+    try:
+        now = time.monotonic()
+
+        # Initialize
+        if last_switch_monotonic is None:
+            title, proc_name = get_process_from_hwnd(hwnd)
+            last_switch_monotonic = now
+            last_active_window = proc_name
+            logging.info(f"[hook init] active app = {proc_name}, title = {title}")
             return
 
-        elapsed = (now - last_check_time).total_seconds()
+        elapsed = now - last_switch_monotonic
         if elapsed <= 0:
-            last_check_time = now
+            last_switch_monotonic = now
             return
 
-        # Check idle now and compute how much of elapsed was active
-        idle_seconds = get_idle_duration()
-        if idle_seconds >= IDLE_THRESHOLD:
-            # User is idle now. Assume they became idle `idle_seconds` ago.
-            active_time = max(0, elapsed - idle_seconds)
-            if active_time > 0 and last_active_window:
-                with lock:
-                    app_usage[last_active_window] = app_usage.get(last_active_window, 0) + active_time
-                logging.info(f"[User Idle] Attributed {active_time:.2f}s to {last_active_window} before idle")
-            # reset trackers — don't count idle as app usage
-            last_check_time = now
-            last_active_window = None
-            return
+        # Idle time calculation (if any)
+        idle_time = get_idle_duration()
 
-        # Not idle: attribute the elapsed to the app that was active during the last interval
-        if last_active_window:
+        active_time = elapsed
+        if idle_time >= IDLE_THRESHOLD:
+            active_time = max(0.0, elapsed - idle_time)
+
+        # Attribution to previous active window
+        if last_active_window and active_time > 0:
             with lock:
-                app_usage[last_active_window] = app_usage.get(last_active_window, 0) + elapsed
-            logging.info(f"[Attributed] +{elapsed:.2f}s -> {last_active_window}")
+                app_usage[last_active_window] = app_usage.get(last_active_window, 0.0) + active_time
+            logging.info(f"[hook attribute] {last_active_window} -> elapsed: {elapsed}")
 
-        # Get the current active window and decide if switch happened
-        window_title, app_name = get_active_window_process()
+        # New foreground process
+        title, new_proc = get_process_from_hwnd(hwnd)
 
-        if app_name != last_active_window:
-            if elapsed >= DEBOUNCE_THRESHOLD:
-                logging.info(f"[switch] {last_active_window} -> {app_name}")
-                last_active_window = app_name
-            else:
-                logging.info(f"[Debounce]  {last_active_window} -> {app_name} ignored")
+        # If user is idle now, clear active window
+        if idle_time >= IDLE_THRESHOLD:
+            last_active_window = None
+            last_switch_monotonic = now
+            logging.info("[hook] user is idle — cleared last_active_window")
+            return
 
-        last_check_time = now
+        # Debounce very short switches
+        # Do not update last_active_window or last_switch_monotonic (so we keep attributing to previous window)
+        if elapsed < HOOK_DEBOUNCE:
+            logging.info(f"[hook debounce] Ignored transient switch to {new_proc} (elapsed {elapsed:.3f}s)")
+            return
+
+        # Set new active window
+        last_active_window = new_proc
+        last_switch_monotonic = now
+        logging.info(f"[hook switch] Now active = {new_proc} | Title = {title}")
+    
     except Exception as e:
-        logging.error(f"Error tracking app usage: {e}")
-
-def tracking_loop( ):
-    while True:
-        track_app_usage()
-        if shutting_down:
-            break
-        time.sleep(TRACKING_INTERVAL)
+        logging.info(f"Error in win_event_proc: {e}")
 
 
-# === DATA PERSISTENCE ===
+# === HOOK MANAGEMENT ===
+def install_hook():
+    global hook_handle, WinEventProc
+
+    # Create a ctypes callback wrapper
+    WinEventProc = WinEventProcType(win_event_proc)
+
+    hook_handle = user32.SetWinEventHook(
+        EVENT_SYSTEM_FOREGROUND,
+        EVENT_SYSTEM_FOREGROUND,
+        0,
+        WinEventProc,
+        0, 0,
+        WINEVENT_OUTOFCONTEXT
+    )
+
+    if not hook_handle:
+        err = ctypes.get_last_error()
+        raise ctypes.WinError(err)
+
+    logging.info("WinEvent hook installed")
+
+def uninstall_hook():
+    global hook_handle
+    if hook_handle:
+        user32.UnhookWinEvent(hook_handle)
+        logging.info("WinEvent hook uninstalled")
+        hook_handle = None
+
+def pump_thread_main():
+
+    try:
+        install_hook()
+        logging.info("Message pump running")
+        msg = wintypes.MSG()
+        # Pump messages until WM_QUIT is posted
+        while user32.GetMessageW(ctypes.byref(msg), 0, 0, 0) != 0:
+            pass
+    except Exception as e:
+        logging.info("pump_thread_main failed: {e}")
+    finally:
+        uninstall_hook()
+        logging.info("Pump thread exiting")
+        
+def start_hook():
+    global hook_thread
+    if hook_thread and hook_thread.is_alive():
+        return
+    hook_thread = threading.Thread(target=pump_thread_main, daemon=True)
+    hook_thread.start()
+    logging.info("Hook thread started") 
+
+def stop_hook(timeout=2.0):
+    # Stop the hook by posting a quit message and joining the thread
+    try:
+        user32.PostQuitMessage(0)
+    except Exception as e:
+        logging.exception("Failed to PostQuitMessage: {e}")
+    # join thread
+    if hook_thread:
+        hook_thread.join(timeout)
+        logging.info("Hook thread joined")
+
+
+# === DATA MANAGEMENT ===
 def save_usage_to_file(archive=False):
     data = {
         "date": str(datetime.now()),
@@ -202,6 +305,10 @@ def get_app_usage():
 def health_check():
     return jsonify({"status": "ok"})
 
+# TODO: Implement the pause functionality
+# @app.route('/api/pause-tracking', methods=['POST'])
+# def pause_tracking():
+
 @app.route('/api/reset-app-usage', methods=['POST'])
 def reset_tracking():
     global app_usage
@@ -227,6 +334,7 @@ def shutdown():
     def do_shutdown():
         global shutting_down
         time.sleep(0.5)  # Give some time for the request to be processed
+        stop_hook()
         flask_thread.shutdown() # Shutdown the Flask server 
         flask_thread.join()  # Wait for the server thread to finish
         shutting_down = True
@@ -240,17 +348,11 @@ def shutdown():
 # === STARTING THE SERVER ===
 if __name__ == '__main__':
     load_usage_from_file()
+
     last_check_time = datetime.now()
-    threading.Thread(target=tracking_loop, daemon=True).start()
+    #threading.Thread(target=tracking_loop, daemon=True).start()
+    start_hook()
     flask_thread.start()
-    try:
-        while flask_thread.is_alive() and not shutting_down:
-            time.sleep(0.5)  # Keep the main thread alive while the server is running
-    # Handle forceful shutdown using Ctrl+C (likely only during testing)
-    except KeyboardInterrupt:
-        logging.info("Keyboard interrupt received, shutting down server...")
-        flask_thread.shutdown()
-        flask_thread.join()
-        shutting_down = True
+    while flask_thread.is_alive() and not shutting_down:
+        time.sleep(0.5)  # Keep the main thread alive while the server is running
     logging.info("Server has been shut down gracefully.")
-    #sys.exit(0)
