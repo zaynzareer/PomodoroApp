@@ -8,7 +8,18 @@ const timerRing = document.querySelector('.timer-ring');
 const pauseBtn = document.getElementById('pauseBtn');
 const skipBtn = document.getElementById('skipBtn');
 
+async function pause_tracking() {
+  try {
+    const res = await fetch('http://localhost:5000/api/pause-tracking', {method: 'POST'});
+  } catch (e) {
+    console.error("Could not shut down backend server:", e);
+  }
+}
+
 async function initializeBreak() {
+  
+  await pause_tracking();
+
   try {
     const stored = await Neutralino.storage.getData('BreakDuration');
     if (stored) {

@@ -1,5 +1,5 @@
-let totalTime =  20 * 60;
-let time = 20 * 60; // 25 mins: 25 *60
+let totalTime =  20 * 60; // 20 mins: 20 *60
+let time = 20 * 60; 
 let timerInterval = null;
 let isRunning = false;
 let pomodoros = 0;
@@ -38,7 +38,7 @@ function toggleTimer() {
     `;
   } else {
     stopCheckingBreakstatus();
-    timerInterval = setInterval(() => {
+    timerInterval = setInterval(async() => {
       if (time > 0) {
         time--;
         updateDisplay();
@@ -47,7 +47,7 @@ function toggleTimer() {
         pomodoros++;
         document.getElementById('pomodoros').innerText = pomodoros;
         isRunning = false;
-        showBreakWindow();
+        await showBreakWindow();
         endFocusSound();
       }
     }, 1000);
@@ -87,7 +87,7 @@ async function showBreakWindow() {
   alwaysOnTop: true,
   borderless: true,
   fullScreen: false,
-  enableInspector: true,
+  enableInspector: false,
   resizable: false,
   hidden: false
   });
@@ -96,13 +96,18 @@ async function showBreakWindow() {
   if (checkBreakstatus) {
     stopCheckingBreakstatus();
   }
-  if (breakDuration < 5) {
-    startCheckingBreakstatus();
-  } 
   else {
-    breakstatusTimeout = setTimeout(startCheckingBreakstatus, (breakDuration - 3) * 1000);
+    startCheckingBreakstatus();
   }
 };
+
+async function resume_tracking() {
+  try {
+    const res = await fetch('http://localhost:5000/api/resume-tracking', {method: 'POST'});
+  } catch (e) {
+    console.error("Could not shut down backend server:", e);
+  }
+}
 
 let checkBreakstatus = null;
 
@@ -118,11 +123,12 @@ function startCheckingBreakstatus() {
           Neutralino.storage.setData("BreakStatus", null);
           endBreakSound();
           resetTimer();
-          toggleTimer();  
+          toggleTimer();
+          setTimeout(await resume_tracking(), 1000);
         }
       }
     } catch (e) {
-      console.log("Error while reading storage: ", e);
+      // Do nothing if data not found
     }
   }, 1000);
 }
@@ -289,7 +295,7 @@ async function waitForBackendReady(retries = 10) {
 }
 
 
-// Fetch real app usage data from Flask backend
+// Fetch app usage data from Flask backend
 async function fetchAppUsageData() {
 try {
   const response = await fetch('http://localhost:5000/api/app-usage');
@@ -402,6 +408,7 @@ async function AppUsageReset() {
 };
 
 let readyStatus = false;
+let is_initialized = false;
 
 Neutralino.events.on("ready", async () => {
   console.log("🛰️ Neutralino is ready");
@@ -412,12 +419,14 @@ Neutralino.events.on("ready", async () => {
   document.addEventListener('DOMContentLoaded', async () => {
     await startPythonServer(); // Start Flask server
     await waitForBackendReady(); // Wait for backend to be ready
+    is_initialized = true;
     await AppUsageReset(); // Reset app usage data if needed
     await fetchAppUsageData(); // Initial fetch
     //setInterval(fetchAppUsageData, 5 * 60 * 1000); // Refresh every 5 minutes
     setInterval(fetchAppUsageData, 10 * 1000)
   });
 });
+
 // Handle initialization errors
 setTimeout( async () => {
   if (!readyStatus) {
@@ -430,3 +439,15 @@ setTimeout( async () => {
     }
   }
 } , 4000);
+
+setTimeout( async () => {
+  if (!is_initialized) {
+    console.error("Application failed to initialize within the expected time.");
+    let button = await Neutralino.os.showMessageBox('Initialization Error',
+      'The App failed to initialize. Click Ok to close the app and try opening again.',
+      'OK', 'ERROR');
+    if(button == 'OK') {
+      await Neutralino.app.exit();
+    }
+  }
+} , 30000);

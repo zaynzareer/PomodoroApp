@@ -19,6 +19,7 @@ TOP_APP_LIMIT = 5
 DEBOUNCE_THRESHOLD = 5
 IDLE_THRESHOLD = 90  # seconds
 DATA_FILE = 'usage_data.json'
+HOOK_DEBOUNCE = 1
 
 # === SETUP ===
 app = Flask(__name__)
@@ -30,17 +31,21 @@ last_active_window = None
 shutting_down = False
 
 last_switch_monotonic = None
-lock = threading.Lock()
+app_usage_lock = threading.Lock()
 
 hook_thread = None
 hook_handle = None
 
-HOOK_DEBOUNCE = 0.5 
+tracking_paused = False
+pause_lock = threading.Lock()
+
 
 # === LOGGER ===
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s', handlers=[
         logging.FileHandler("usage_tracker.log")])
 
+# Disable logging when not debugging 
+#logging.disable(logging.CRITICAL)
 
 # Win32 constants
 EVENT_SYSTEM_FOREGROUND = 0x0003
@@ -115,7 +120,7 @@ def get_process_from_hwnd(hwnd):
 # === HOOK CALLBACK ===
 def win_event_proc(hWinEventHook, event, hwnd, idObject, idChild, dwEventThread, dwmsEventTime):
 
-    if shutting_down:
+    if shutting_down or tracking_paused:
         return
     
     global last_switch_monotonic, last_active_window, app_usage  
@@ -145,7 +150,7 @@ def win_event_proc(hWinEventHook, event, hwnd, idObject, idChild, dwEventThread,
 
         # Attribution to previous active window
         if last_active_window and active_time > 0:
-            with lock:
+            with app_usage_lock:
                 app_usage[last_active_window] = app_usage.get(last_active_window, 0.0) + active_time
             logging.info(f"[hook attribute] {last_active_window} -> elapsed: {elapsed}")
 
@@ -224,6 +229,7 @@ def start_hook():
         return
     hook_thread = threading.Thread(target=pump_thread_main, daemon=True)
     hook_thread.start()
+    seed_hook_state()
     logging.info("Hook thread started") 
 
 def stop_hook(timeout=2.0):
@@ -236,6 +242,42 @@ def stop_hook(timeout=2.0):
     if hook_thread:
         hook_thread.join(timeout)
         logging.info("Hook thread joined")
+
+
+# === PAUSE/RESUME TRACKING ===
+
+def seed_hook_state():
+    # Set last_active_window and last_switch_monotonic to current foreground state.
+    # We call this on resume so we don't attribute paused time.
+    global last_switch_monotonic, last_active_window
+    try:
+        hwnd = win32gui.GetForegroundWindow()
+        title, proc_name = get_process_from_hwnd(hwnd)
+        last_switch_monotonic = time.monotonic()
+        last_active_window = proc_name
+        logging.info(f"[seed] active={proc_name} title={title}")
+    except Exception:
+        logging.exception("Failed to seed hook state on resume")
+
+
+def pause_tracking():
+    global tracking_paused, last_active_window, last_switch_monotonic
+    with pause_lock:
+        tracking_paused = True
+        # Clear baseline so no attribution after resume from old events
+        last_active_window = None
+        last_switch_monotonic = time.monotonic()
+        logging.info("Tracking paused")
+
+
+def resume_tracking():
+    # Resume attribution. Seed the current active window
+    global tracking_paused
+    with pause_lock:
+        tracking_paused = False
+        # seed the hook baseline so attribution starts fresh from now
+        seed_hook_state()
+        logging.info("Tracking resumed")
 
 
 # === DATA MANAGEMENT ===
@@ -305,12 +347,8 @@ def get_app_usage():
 def health_check():
     return jsonify({"status": "ok"})
 
-# TODO: Implement the pause functionality
-# @app.route('/api/pause-tracking', methods=['POST'])
-# def pause_tracking():
-
 @app.route('/api/reset-app-usage', methods=['POST'])
-def reset_tracking():
+def reset_app_usage():
     global app_usage
     #save_usage_to_file(archive=True)
     app_usage.clear()
@@ -327,13 +365,29 @@ def get_mock_app_usage():
         {"name": "Terminal", "timeUsed": 25}
     ])
 
+@app.route('/api/pause-tracking', methods=['POST'])
+def api_pause_tracking():
+    try:
+        pause_tracking()
+        return jsonify({"status": "paused"})
+    except Exception:
+        logging.exception("Error in /api/pause-tracking")
+        return jsonify({"status":"error"}), 500
+
+@app.route('/api/resume-tracking', methods=['POST'])
+def api_resume_tracking():
+    try:
+        resume_tracking()
+        return jsonify({"status":"resumed"})
+    except Exception:
+        logging.exception("Error in /api/resume-tracking")
+        return jsonify({"status":"error"}), 500
+
 @app.route('/shutdown', methods=['POST'])
 def shutdown():
     global shutting_down
-    save_usage_to_file()
     def do_shutdown():
         global shutting_down
-        time.sleep(0.5)  # Give some time for the request to be processed
         stop_hook()
         flask_thread.shutdown() # Shutdown the Flask server 
         flask_thread.join()  # Wait for the server thread to finish
@@ -347,12 +401,15 @@ def shutdown():
 
 # === STARTING THE SERVER ===
 if __name__ == '__main__':
+
     load_usage_from_file()
 
-    last_check_time = datetime.now()
-    #threading.Thread(target=tracking_loop, daemon=True).start()
     start_hook()
     flask_thread.start()
+
     while flask_thread.is_alive() and not shutting_down:
         time.sleep(0.5)  # Keep the main thread alive while the server is running
+
+    # On shutdown, save data
+    save_usage_to_file()
     logging.info("Server has been shut down gracefully.")
