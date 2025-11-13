@@ -101,6 +101,14 @@ async function showBreakWindow() {
   }
 };
 
+async function pause_tracking() {
+  try {
+    const res = await fetch('http://localhost:5000/api/pause-tracking', {method: 'POST'});
+  } catch (e) {
+    console.error("Could not shut down backend server:", e);
+  }
+}
+
 async function resume_tracking() {
   try {
     const res = await fetch('http://localhost:5000/api/resume-tracking', {method: 'POST'});
@@ -155,6 +163,38 @@ function endBreakSound() {
   audio.play();
 }
 
+
+// Toggle App Usage Tracking
+let isTracking = true;
+const toggleInput = document.getElementById('toggleAppUsage');
+const toggleSwitch = toggleInput.closest('.toggle-switch');
+
+toggleSwitch.addEventListener('click', async (event) => {
+  event.preventDefault(); // stop the checkbox from toggling immediately
+
+  // If already loading, ignore further clicks
+  if (toggleSwitch.classList.contains('loading')) return;
+
+  toggleSwitch.classList.add('loading');
+  toggleInput.disabled = true;
+
+  if (isTracking) {
+    await pause_tracking();
+    isTracking = false;
+  } else {
+    await resume_tracking();
+    isTracking = true;
+  }
+
+  setTimeout(() => {
+    
+    toggleInput.checked = !toggleInput.checked;
+
+    // Remove loading state
+    toggleSwitch.classList.remove('loading');
+    toggleInput.disabled = false;
+  }, 4000); // 4 second delay
+});
 
 
 // App Usage Tracking
